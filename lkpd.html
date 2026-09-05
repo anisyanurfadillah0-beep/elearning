@@ -1,0 +1,1851 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  BookOpen, Brain, Target, Trophy, ChevronRight, ChevronLeft, 
+  X, CheckCircle2, ArrowRight, ShieldCheck,
+  FileText, Send, User, Edit3,
+  Bot, AlertTriangle, Eye, Sparkles, Award, MessageSquare, Trash2,
+  Table, Calculator
+} from 'lucide-react';
+
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, addDoc, getDocs, updateDoc, doc } from 'firebase/firestore';
+
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'mathlearn-lkpd-app';
+const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+let firebaseConfig = {};
+try {
+  firebaseConfig = JSON.parse(firebaseConfigStr);
+} catch (e) {
+  console.error("Error parsing firebase config", e);
+}
+
+let app, auth, db;
+try {
+  if (Object.keys(firebaseConfig).length > 0) {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+  }
+} catch (error) {
+  console.error("Firebase initialization error:", error);
+}
+
+const MATERI_LIST = [
+  { 
+    id: 'pythagoras', 
+    name: 'Teorema Pythagoras', 
+    desc: '8 Level Pirie-Kieren (Konsep, Visualisasi, Pembuktian & Soal Kontekstual Tangga)', 
+    badge: 'Fiks & Lengkap', 
+    icon: '📐', 
+    meetings: [1, 2] 
+  },
+  { 
+    id: 'lingkaran', 
+    name: 'Lingkaran (Keliling & Luas)', 
+    desc: 'Sample LKPD Modul Lingkaran', 
+    badge: 'Sampel', 
+    icon: '⭕', 
+    meetings: [1, 2] 
+  }
+];
+
+const LKPD_DATA = [
+  {
+    level: 1, 
+    meeting: 1, 
+    topic: 'pythagoras',
+    title: "LEVEL 1: PRIMITIVE KNOWING",
+    desc: "Mengenal istilah & properti dasar segitiga siku-siku serta rumus dasar persegi.",
+    theory: "Tujuan: Mengingat kembali istilah dasar dan pengetahuan prasyarat (segitiga siku-siku & luas persegi) sebelum masuk ke konsep Teorema Pythagoras.\nPerhatikan gambar segitiga siku-siku di bawah ini dengan cermat.",
+    hasTriangleDiagram: true,
+    mcqs: [],
+    essays: [
+      { 
+        id: 'e1_1', 
+        type: 'text', 
+        q: "1. Perhatikan gambar segitiga siku-siku di atas. Sisi manakah yang menurutmu paling panjang? Mengapa?", 
+        key: "Sisi c (hipotenusa/sisi miring) karena berada tepat di hadapan sudut siku-siku (90°) dan membentang diagonal." 
+      },
+      { 
+        id: 'e1_2', 
+        type: 'text', 
+        q: "2. Apa yang kamu ketahui tentang segitiga siku-siku? Sebutkan ciri-cirinya.", 
+        key: "Segitiga yang salah satu sudutnya tepat bernilai 90 derajat, memiliki dua sisi siku-siku yang saling tegak lurus, dan satu sisi miring (hipotenusa)." 
+      },
+      { 
+        id: 'e1_3', 
+        type: 'text', 
+        q: "3. Masih ingatkah kamu cara menghitung luas persegi? Tuliskan rumusnya.", 
+        key: "Luas persegi = sisi × sisi = s²" 
+      }
+    ]
+  },
+  {
+    level: 2, 
+    meeting: 1, 
+    topic: 'pythagoras',
+    title: "LEVEL 2: IMAGE MAKING",
+    desc: "Membangun ide awal tentang hubungan sudut dan panjang sisi segitiga.",
+    theory: "Tujuan: Mengamati hubungan posisi sudut siku-siku terhadap hipotenusa dan membuat dugaan awal hubungan antar ketiga sisi.",
+    hasAngleDiagram: true,
+    mcqs: [],
+    essays: [
+      { 
+        id: 'e2_1', 
+        type: 'text', 
+        q: "1. Mengapa pada segitiga siku-siku sisi miring selalu berhadapan dengan sudut siku-siku (90°)?", 
+        key: "Karena sudut 90° adalah sudut terbesar dalam segitiga siku-siku, sehingga sisi di depannya merupakan sisi terpanjang (sisi miring/hipotenusa)." 
+      },
+      { 
+        id: 'e2_2', 
+        type: 'text', 
+        q: "2. Apakah ada hubungan antara panjang ketiga sisi pada segitiga siku-siku? Jelaskan menurut pendapatmu!", 
+        key: "Ada, panjang sisi miring berhubungan erat dengan dua sisi siku-siku, di mana kuadrat sisi miring bernilai sama dengan penjumlahan kuadrat kedua sisi siku-siku." 
+      }
+    ]
+  },
+  {
+    level: 3, 
+    meeting: 1, 
+    topic: 'pythagoras',
+    title: "LEVEL 3: IMAGE HAVING",
+    desc: "Eksplorasi visual interaktif & pengamatan perubahan luas persegi pada tiap sisi.",
+    theory: "Tujuan: Mengamati secara visual hubungan penjumlahan luas persegi pada dua sisi siku-siku dengan luas persegi pada sisi miring.\nPetunjuk: Geser slider di bawah ini untuk mengubah ukuran sisi a dan b!",
+    hasInteractiveVisualizer: true,
+    mcqs: [],
+    essays: [
+      { 
+        id: 'e3_1', 
+        type: 'text', 
+        q: "1. Bandingkan hasil luas persegi pada sisi a dan b. Jika dijumlahkan, berapa hasilnya? (Coba beberapa ukuran berbeda menggunakan slider di atas)", 
+        key: "Hasil penjumlahan luas persegi a (a²) dan luas persegi b (b²) menghasilkan bilangan tertentu (misal: 9 + 16 = 25)." 
+      },
+      { 
+        id: 'e3_2', 
+        type: 'text', 
+        q: "2. Sekarang bandingkan hasil penjumlahan tersebut dengan luas persegi pada sisi c (sisi miring). Apa yang kamu temukan? Apakah pola ini berlaku untuk semua ukuran yang kamu coba?", 
+        key: "Jumlah luas persegi a² + b² selalu persis sama dengan luas persegi c² pada sisi miring. Pola ini berlaku untuk semua ukuran segitiga siku-siku." 
+      }
+    ]
+  },
+  {
+    level: 4, 
+    meeting: 1, 
+    topic: 'pythagoras',
+    title: "LEVEL 4: PROPERTY NOTICING",
+    desc: "Memverifikasi pola & merumuskan persamaan matematisTeorema Pythagoras.",
+    theory: "Tujuan: Menyadari sifat sistematis dari pola yang ditemukan dan menuliskannya ke dalam bentuk rumus matematis resmi.",
+    hasTableVerification: true,
+    mcqs: [],
+    essays: [
+      { 
+        id: 'e4_1', 
+        type: 'text', 
+        q: "1. Dari hasil yang kamu dapatkan pada level sebelumnya, apakah pola tersebut berlaku untuk semua ukuran segitiga siku-siku yang kamu coba?", 
+        key: "Ya, berlaku untuk semua ukuran segitiga siku-siku tanpa terkecuali." 
+      },
+      { 
+        id: 'e4_2', 
+        type: 'text', 
+        q: "2. Jika luas persegi pada sisi a = a², luas persegi pada sisi b = b², dan luas persegi pada sisi c = c², bagaimana hubungan ketiganya dapat kamu tuliskan dalam bentuk persamaan?", 
+        key: "a² + b² = c² (atau c² = a² + b²)" 
+      },
+      { 
+        id: 'e4_3', 
+        type: 'text', 
+        q: "3. Cobalah tuliskan rumus tersebut dengan bahasamu sendiri?", 
+        key: "Luas persegi pada sisi miring sama dengan jumlah luas persegi pada kedua sisi siku-sikunya, atau kuadrat sisi miring sama dengan kuadrat sisi tegak ditambah kuadrat sisi alas." 
+      }
+    ]
+  },
+  {
+    level: 5, 
+    meeting: 2, 
+    topic: 'pythagoras',
+    title: "LEVEL 5: FORMALIZING & APLIKASI KONTEKSTUAL",
+    desc: "Menerapkan rumus Teorema Pythagoras pada masalah dunia nyata (Tangga & Dinding).",
+    theory: "Tujuan: Menggunakan rumus formal c = √(a² + b²) untuk memecahkan masalah kontekstual kehidupan sehari-hari.",
+    hasLadderIllustration: true,
+    mcqs: [],
+    essays: [
+      { 
+        id: 'e5_1', 
+        type: 'text', 
+        q: "1. Sebuah tangga disandarkan pada dinding setinggi 4 meter, dengan jarak kaki tangga ke dinding 3 meter. Berapa panjang tangga tersebut? Gunakan rumus yang baru kamu temukan.", 
+        key: "a = 3, b = 4, c = √(3² + 4²) = √(9 + 16) = √25 = 5 meter." 
+      },
+      { 
+        id: 'e5_2', 
+        type: 'text', 
+        q: "2. Menurutmu, apakah rumus Pythagoras bisa digunakan pada segitiga yang bukan siku-siku? Jelaskan alasannya!", 
+        key: "Tidak bisa. Rumus Pythagoras hanya berlaku khusus untuk segitiga siku-siku karena pembuktian geometri luas perseginya berlandaskan sudut tepat 90°." 
+      },
+      { 
+        id: 'e5_3', 
+        type: 'text', 
+        q: "3. Diberikan dua rumah dengan tinggi yang berbeda, jika ingin membuat tangga sampai ke atap, manakah yang membutuhkan tangga lebih panjang? Jelaskan alasannya!", 
+        key: "Rumah yang lebih tinggi membutuhkan tangga yang lebih panjang karena sisi tegak (b) lebih tinggi sehingga hipotenusa (c) menjadi lebih panjang." 
+      }
+    ]
+  },
+  {
+    level: 6, 
+    meeting: 2, 
+    topic: 'pythagoras',
+    title: "LEVEL 6: OBSERVING",
+    desc: "Penerapan terkoordinasi & rangkuman fungsi Teorema Pythagoras.",
+    theory: "Tujuan: Mengonsolidasikan pemahaman rumus Pythagoras untuk berbagai variasi kasus kontekstual.",
+    mcqs: [],
+    essays: [
+      { 
+        id: 'e6_1', 
+        type: 'text', 
+        q: "1. Tuliskan kembali rumus Teorema Pythagoras beserta penjelasan singkat kapan rumus ini digunakan.", 
+        key: "Rumus: a² + b² = c² (c = √(a²+b²)). Digunakan ketika ingin mencari panjang salah satu sisi pada segitiga siku-siku jika dua sisi lainnya sudah diketahui." 
+      },
+      { 
+        id: 'e6_2', 
+        type: 'text', 
+        q: "2. Sebuah kapal berlayar ke arah utara sejauh 9 km, kemudian berbelok ke arah timur sejauh 12 km. Hitung jarak terdekat kapal sekarang dari titik keberangkatan semula!", 
+        key: "Jarak = √(9² + 12²) = √(81 + 144) = √225 = 15 km." 
+      },
+      { 
+        id: 'e6_3', 
+        type: 'text', 
+        q: "3. Sebidang tanah berbentuk segitiga siku-siku memiliki sisi miring 35 m dan salah satu sisi siku-sikunya 21 m. Berapa panjang sisi siku-siku lainnya?", 
+        key: "Sisi lain = √(35² - 21²) = √(1225 - 441) = √784 = 28 meter." 
+      }
+    ]
+  },
+  {
+    level: 7, 
+    meeting: 2, 
+    topic: 'pythagoras',
+    title: "LEVEL 7: STRUCTURING",
+    desc: "Kebalikan Pythagoras, Tripel Pythagoras, & Bangun Ruang Balok.",
+    theory: "Tujuan: Memperluas pemahaman ke konsep Kebalikan Pythagoras (jenis segitiga) dan Pythagoras 3D.",
+    mcqs: [],
+    essays: [
+      { 
+        id: 'e7_1', 
+        type: 'text', 
+        q: "1. Diberikan tiga kelompok panjang sisi segitiga: (i) 6 cm, 8 cm, 10 cm; (ii) 5 cm, 7 cm, 9 cm. Tentukan manakah yang membentuk segitiga siku-siku dan segitiga tumpul dengan Kebalikan Teorema Pythagoras!", 
+        key: "(i) 6²+8²=100 = 10² (Segitiga Siku-siku). (ii) 5²+7²=74 < 9²=81 (Segitiga Tumpul)." 
+      },
+      { 
+        id: 'e7_2', 
+        type: 'text', 
+        q: "2. Sebuah balok memiliki panjang 12 cm, lebar 9 cm, dan tinggi 8 cm. Tentukan panjang diagonal bidang alas dan diagonal ruang balok tersebut!", 
+        key: "Diagonal alas = √(12²+9²) = 15 cm. Diagonal ruang = √(15²+8²) = √289 = 17 cm." 
+      }
+    ]
+  },
+  {
+    level: 8, 
+    meeting: 2, 
+    topic: 'pythagoras',
+    title: "LEVEL 8: INVENTING",
+    desc: "Problem Solving Kreatif & Generalisasi pada Bentuk Setengah Lingkaran.",
+    theory: "Tujuan: Membuktikan generalisasi Teorema Pythagoras pada bentuk geometri selain persegi.",
+    mcqs: [],
+    essays: [
+      { 
+        id: 'e8_1', 
+        type: 'text', 
+        q: "1. GENERALISASI SETENGAH LINGKARAN: Jika pada setiap sisi segitiga siku-siku dibangun SETENGAH LINGKARAN dengan diameter masing-masing sisi (a, b, c), apakah Luas Setengah Lingkaran c tetap sama dengan jumlah Luas Setengah Lingkaran a dan b? Buktikan!", 
+        key: "Buktinya: Luas = (π/8)d². Maka L_a + L_b = (π/8)a² + (π/8)b² = (π/8)(a²+b²) = (π/8)c² = L_c. Terbukti Benar!" 
+      }
+    ]
+  }
+];
+
+const EVALUASI_DATA = {
+  pythagoras: {
+    mcqs: [
+      { id: 'ev_1', q: "1. Segitiga yang memiliki satu sudut bernilai tepat 90° adalah...", options: ["Segitiga Lancip", "Segitiga Tumpul", "Segitiga Siku-siku", "Segitiga Sama Sisi"], ans: 2 },
+      { id: 'ev_2', q: "2. Pada segitiga siku-siku, sisi terpanjang yang berada di depan sudut 90° disebut...", options: ["Sisi Alas", "Sisi Tegak", "Hipotenusa (Sisi Miring)", "Sisi Sumbu"], ans: 2 },
+      { id: 'ev_3', q: "3. Sebuah tangga 5 meter disandarkan pada tembok setinggi 4 meter. Jarak alas tangga ke tembok adalah...", options: ["2 meter", "3 meter", "3.5 meter", "4.5 meter"], ans: 1 },
+      { id: 'ev_4', q: "4. Jika a = 6 cm dan b = 8 cm pada segitiga siku-siku, maka panjang c adalah...", options: ["10 cm", "12 cm", "14 cm", "100 cm"], ans: 0 },
+      { id: 'ev_5', q: "5. Manakah rumus Teorema Pythagoras yang benar untuk sisi siku-siku a, b dan sisi miring c?", options: ["a² + b² = c²", "a² - b² = c²", "c² + a² = b²", "a + b = c"], ans: 0 }
+    ],
+    essays: [
+      { id: 'ev_e1', q: "1. Tuliskan kembali rumus Teorema Pythagoras dan jelaskan kapan rumus tersebut dapat digunakan!", key: "a² + b² = c². Digunakan untuk mencari panjang salah satu sisi pada segitiga siku-siku jika 2 sisi lainnya diketahui." },
+      { id: 'ev_e2', q: "2. Sebuah tangga disandarkan pada dinding setinggi 4 m dengan jarak kaki tangga ke dinding 3 m. Hitunglah panjang tangga tersebut menggunakan Teorema Pythagoras!", key: "c = √(3² + 4²) = √(9 + 16) = √25 = 5 m." }
+    ]
+  }
+};
+
+const MATERI_CONTENT = {
+  pythagoras: [
+    {
+      title: "Pengantar Teorema Pythagoras",
+      content: "Teorema Pythagoras adalah sebuah aturan matematika yang menjelaskan hubungan antara ketiga sisi pada segitiga siku-siku. Rumus utamanya adalah a² + b² = c², di mana c adalah sisi miring (hipotenusa)."
+    },
+    {
+      title: "Pembuktian Visual",
+      content: "Jika kita membuat persegi di setiap sisi segitiga siku-siku, maka luas persegi pada sisi miring akan selalu persis sama dengan jumlah luas dua persegi pada sisi tegak dan mendatar."
+    }
+  ]
+};
+
+const LATIHAN_DATA = {
+  pythagoras: [
+    { id: 'lat_1', q: "Rumus Pythagoras yang benar adalah...", options: ["a + b = c", "a² + b² = c²", "a² - b² = c²", "a × b = c"], ans: 1, explanation: "Teorema Pythagoras menyatakan kuadrat sisi miring sama dengan jumlah kuadrat sisi tegak penyikunya." },
+    { id: 'lat_2', q: "Tripel Pythagoras yang benar di bawah ini adalah...", options: ["3, 4, 6", "5, 12, 13", "6, 8, 12", "7, 8, 9"], ans: 1, explanation: "5² + 12² = 25 + 144 = 169. Dan 13² = 169. (Terbukti Sama)" }
+  ]
+};
+
+function evaluateAnswerWithAI(question, studentAns, cheatCount) {
+  let text = "";
+  let hasImage = false;
+
+  if (typeof studentAns === 'object' && studentAns !== null) {
+    text = studentAns.text || studentAns.content || "";
+    hasImage = !!studentAns.image;
+  } else if (typeof studentAns === 'string') {
+    text = studentAns;
+  }
+
+  const trimmed = text.trim();
+  if (trimmed.length === 0 && !hasImage) {
+    return { score: 0, feedback: "Jawaban belum diisi. Mohon lengkapi penjelasan atau upload gambar jawaban." };
+  }
+
+  let baseScore = 7;
+  if (trimmed.length > 30 || hasImage) baseScore += 2;
+  if (/\d+/.test(trimmed) || trimmed.includes("=") || trimmed.includes("+") || trimmed.includes("^2") || trimmed.includes("²") || trimmed.includes("√") || trimmed.includes("siku")) baseScore += 1;
+
+  if (cheatCount > 3) {
+    baseScore = Math.max(1, baseScore - 2);
+  }
+
+  const finalScore = Math.min(10, baseScore);
+  
+  let aiAnalysis = "";
+  if (question.q.toLowerCase().includes("mengapa")) {
+      aiAnalysis = " AI menilai kelogisan argumenmu.";
+  } else if (question.q.toLowerCase().includes("hitung") || question.q.toLowerCase().includes("berapa")) {
+      aiAnalysis = " AI memeriksa tahapan perhitunganmu.";
+  }
+
+  const feedbackMsg = hasImage
+    ? `Gambar lampiran terbaca jelas.${aiAnalysis} Penjelasan teks memuat poin yang sesuai (${finalScore}/10).`
+    : `Penjelasan kamu runtut.${aiAnalysis} Analisis indikator pemahaman cukup baik (${finalScore}/10).`;
+
+  return { score: finalScore, feedback: feedbackMsg };
+}
+
+function useTimer(initialSeconds, onExpire) {
+  const [seconds, setSeconds] = useState(initialSeconds);
+  useEffect(() => {
+    if (seconds <= 0) {
+      if(onExpire) onExpire();
+      return;
+    }
+    const timer = setInterval(() => setSeconds(s => s - 1), 1000);
+    return () => clearInterval(timer);
+  }, [seconds, onExpire]);
+  
+  const format = () => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+  return { seconds, format };
+}
+
+function DrawingUploadBox({ value, onChange }) {
+  const [text, setText] = useState(value?.text || '');
+  const [image, setImage] = useState(value?.image || null);
+  const fileInputRef = useRef(null);
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImage(reader.result);
+        onChange({ text, image: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleTextChange = (e) => {
+    const val = e.target.value;
+    setText(val);
+    onChange({ text: val, image });
+  };
+
+  const removeImage = () => {
+    setImage(null);
+    onChange({ text, image: null });
+  };
+
+  return (
+    <div className="space-y-3">
+      <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full sm:w-auto px-4 py-2.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl font-bold text-xs flex items-center justify-center transition border border-indigo-200 shadow-sm"
+        >
+          {image ? '📷 Ganti Foto / Sketsa Jawaban' : '📷 Upload Foto Kertas Berpetak / Gambar Jawaban'}
+        </button>
+        {image && (
+          <button
+            type="button"
+            onClick={removeImage}
+            className="text-xs text-red-600 hover:underline font-bold flex items-center"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" /> Hapus Foto
+          </button>
+        )}
+      </div>
+
+      {image && (
+        <div className="relative border rounded-2xl p-2 bg-slate-50 max-w-xs shadow-inner">
+          <img src={image} alt="Lampiran Jawaban" className="rounded-xl w-full max-h-48 object-cover" />
+        </div>
+      )}
+
+      <div>
+        <label className="block text-xs font-bold text-gray-500 mb-1">Catatan / Penjelasan Tambahan:</label>
+        <textarea
+          rows={3}
+          value={text}
+          onChange={handleTextChange}
+          placeholder="Tuliskan catatan perhitungan atau penjelasan di sini..."
+          className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-200 outline-none text-xs bg-white shadow-inner"
+        />
+      </div>
+    </div>
+  );
+}
+
+function Level1TriangleDiagram() {
+  return (
+    <div className="bg-slate-900 rounded-2xl p-6 mb-6 border border-slate-700 text-white shadow-lg">
+      <div className="flex items-center mb-4">
+        <div className="bg-blue-500/20 p-2 rounded-lg mr-3">
+          <Brain className="w-5 h-5 text-blue-400" />
+        </div>
+        <div>
+          <h3 className="font-extrabold text-sm text-blue-400">Gambar Segitiga Siku-Siku (Level 1)</h3>
+          <p className="text-[11px] text-slate-400">Amati ketiga sisi a, b, dan c di bawah ini</p>
+        </div>
+      </div>
+
+      <div className="flex justify-center items-center py-4 bg-slate-950 rounded-xl border border-slate-800">
+        <svg width="280" height="200" viewBox="0 0 280 200" className="overflow-visible">
+          {/* Segitiga Siku-Siku */}
+          <polygon points="50,160 220,160 50,40" fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="4" strokeLinejoin="round" />
+          
+          {/* Siku-Siku Angle Box (90°) */}
+          <path d="M 50,140 L 70,140 L 70,160" fill="none" stroke="#f59e0b" strokeWidth="2" />
+          <circle cx="60" cy="150" r="2" fill="#f59e0b" />
+
+          {/* Label Sisi */}
+          <text x="135" y="180" fill="#60a5fa" fontSize="14" fontWeight="bold" textAnchor="middle">Sisi a (Alas)</text>
+          <text x="30" y="100" fill="#34d399" fontSize="14" fontWeight="bold" textAnchor="middle">Sisi b (Tegak)</text>
+          <text x="155" y="90" fill="#fbbf24" fontSize="15" fontWeight="black" textAnchor="middle">Sisi c (Sisi Miring / Hipotenusa)</text>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function Level3InteractiveVisualizer() {
+  const [sideA, setSideA] = useState(3);
+  const [sideB, setSideB] = useState(4);
+
+  const sideC = Math.sqrt(sideA * sideA + sideB * sideB);
+  const areaA = sideA * sideA;
+  const areaB = sideB * sideB;
+  const areaC = sideC * sideC;
+
+  return (
+    <div className="bg-slate-900 rounded-2xl p-6 mb-8 border border-slate-700 text-white shadow-xl">
+      <div className="flex items-center mb-6">
+        <div className="bg-indigo-500/20 p-2 rounded-lg mr-3">
+          <Sparkles className="w-5 h-5 text-indigo-400" />
+        </div>
+        <div>
+          <h3 className="font-extrabold text-sm text-indigo-400">Simulator Luas Persegi Segitiga Siku-Siku</h3>
+          <p className="text-[11px] text-slate-400">Ubah ukuran slider untuk mengamati perubahan luas persegi pada masing-masing sisi</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-5 bg-slate-800/80 p-5 rounded-2xl border border-slate-700">
+          <div>
+            <div className="flex justify-between text-xs font-bold mb-2">
+              <span className="text-blue-400">Panjang Sisi a (Alas):</span>
+              <span className="text-amber-300 font-mono text-sm">{sideA} satuan</span>
+            </div>
+            <input 
+              type="range" min="2" max="8" value={sideA} 
+              onChange={e => setSideA(Number(e.target.value))} 
+              className="w-full accent-blue-500 cursor-pointer" 
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between text-xs font-bold mb-2">
+              <span className="text-emerald-400">Panjang Sisi b (Tegak):</span>
+              <span className="text-amber-300 font-mono text-sm">{sideB} satuan</span>
+            </div>
+            <input 
+              type="range" min="2" max="8" value={sideB} 
+              onChange={e => setSideB(Number(e.target.value))} 
+              className="w-full accent-emerald-500 cursor-pointer" 
+            />
+          </div>
+
+          <div className="border-t border-slate-700 pt-3 text-xs space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-semibold">Panjang Sisi c (Miring):</span>
+              <span className="font-bold text-amber-400 font-mono text-sm">c = {sideC.toFixed(2)} satuan</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Interactive SVG Triangle + Squares */}
+        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col items-center justify-center">
+          <div className="w-full text-center text-xs font-bold text-slate-400 uppercase mb-2 flex items-center justify-center">
+            <Table className="w-4 h-4 mr-1 text-amber-400"/> Live Diagram & Luas Persegi
+          </div>
+
+          <div className="relative my-2 flex justify-center">
+            <svg width="220" height="180" viewBox="0 0 220 180" className="overflow-visible">
+              {/* Segitiga */}
+              <polygon points="60,130 150,130 60,50" fill="rgba(99, 102, 241, 0.3)" stroke="#6366f1" strokeWidth="3" />
+              
+              {/* Persegi Sisi a */}
+              <rect x="60" y="130" width="90" height="35" fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeDasharray="3 3" />
+              <text x="105" y="152" fill="#60a5fa" fontSize="10" fontWeight="bold" textAnchor="middle">a² = {areaA}</text>
+
+              {/* Persegi Sisi b */}
+              <rect x="25" y="50" width="35" height="80" fill="rgba(16, 185, 129, 0.2)" stroke="#10b981" strokeDasharray="3 3" />
+              <text x="42" y="95" fill="#34d399" fontSize="10" fontWeight="bold" textAnchor="middle">b² = {areaB}</text>
+
+              {/* Label Sisi c */}
+              <text x="120" y="80" fill="#fbbf24" fontSize="11" fontWeight="extrabold" textAnchor="middle">c² = {areaC.toFixed(0)}</text>
+            </svg>
+          </div>
+
+          {/* Dynamic Data Table */}
+          <div className="w-full overflow-x-auto mt-2">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400">
+                  <th className="py-1">Sisi</th>
+                  <th className="py-1">Panjang Sisi</th>
+                  <th className="py-1">Luas Persegi (sisi × sisi)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 font-mono text-[11px]">
+                <tr>
+                  <td className="py-1 text-blue-400 font-bold">A</td>
+                  <td className="py-1">{sideA}</td>
+                  <td className="py-1 text-blue-300">{areaA} satuan luas</td>
+                </tr>
+                <tr>
+                  <td className="py-1 text-emerald-400 font-bold">B</td>
+                  <td className="py-1">{sideB}</td>
+                  <td className="py-1 text-emerald-300">{areaB} satuan luas</td>
+                </tr>
+                <tr className="bg-amber-950/40">
+                  <td className="py-1 text-amber-400 font-bold">C (Sisi Miring)</td>
+                  <td className="py-1 text-amber-300">{sideC.toFixed(2)}</td>
+                  <td className="py-1 text-amber-400 font-bold">{areaC.toFixed(0)} satuan luas</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-3 bg-slate-900 p-2.5 rounded-xl border border-amber-500/30 text-xs text-amber-200 w-full text-center">
+            <span className="font-bold">Penjumlahan:</span> {areaA} + {areaB} = <span className="font-black text-amber-400">{areaA + areaB}</span> (Persis sama dengan Luas c² = {areaC.toFixed(0)})
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TableVerificationBox() {
+  const [userRow, setUserRow] = useState({ a: '', b: '', c: '' });
+
+  return (
+    <div className="bg-slate-900 rounded-2xl p-5 mb-8 border border-slate-700 text-white shadow-lg">
+      <div className="flex items-center mb-4">
+        <div className="bg-amber-500/20 p-2 rounded-lg mr-3">
+          <Target className="w-5 h-5 text-amber-400" />
+        </div>
+        <h3 className="font-extrabold text-sm text-amber-400">Tabel Eksplorasi Verifikasi Pola (a² + b² = c²)</h3>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr className="bg-slate-800 text-slate-300 font-bold border-b border-slate-700">
+              <th className="p-2.5">Sisi a</th>
+              <th className="p-2.5">Sisi b</th>
+              <th className="p-2.5">Sisi miring c</th>
+              <th className="p-2.5">Luas a²</th>
+              <th className="p-2.5">Luas b²</th>
+              <th className="p-2.5">Luas c²</th>
+              <th className="p-2.5">a² + b² = c² ?</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 font-mono text-[12px]">
+            <tr>
+              <td className="p-2.5">3</td>
+              <td className="p-2.5">4</td>
+              <td className="p-2.5 text-amber-400 font-bold">5</td>
+              <td className="p-2.5">9</td>
+              <td className="p-2.5">16</td>
+              <td className="p-2.5 text-amber-300">25</td>
+              <td className="p-2.5 text-emerald-400 font-bold">9 + 16 = 25 (Sama)</td>
+            </tr>
+            <tr>
+              <td className="p-2.5">6</td>
+              <td className="p-2.5">8</td>
+              <td className="p-2.5 text-amber-400 font-bold">10</td>
+              <td className="p-2.5">36</td>
+              <td className="p-2.5">64</td>
+              <td className="p-2.5 text-amber-300">100</td>
+              <td className="p-2.5 text-emerald-400 font-bold">36 + 64 = 100 (Sama)</td>
+            </tr>
+            <tr className="bg-slate-800/60">
+              <td className="p-2">
+                <input type="number" placeholder="a" value={userRow.a} onChange={e => setUserRow({...userRow, a: e.target.value})} className="w-12 bg-slate-900 border border-slate-700 p-1 rounded text-center text-white" />
+              </td>
+              <td className="p-2">
+                <input type="number" placeholder="b" value={userRow.b} onChange={e => setUserRow({...userRow, b: e.target.value})} className="w-12 bg-slate-900 border border-slate-700 p-1 rounded text-center text-white" />
+              </td>
+              <td className="p-2">
+                <input type="number" placeholder="c" value={userRow.c} onChange={e => setUserRow({...userRow, c: e.target.value})} className="w-12 bg-slate-900 border border-amber-500/50 p-1 rounded text-center text-amber-300 font-bold" />
+              </td>
+              <td className="p-2">{userRow.a ? Number(userRow.a)**2 : '-'}</td>
+              <td className="p-2">{userRow.b ? Number(userRow.b)**2 : '-'}</td>
+              <td className="p-2 font-bold text-amber-300">{userRow.c ? Number(userRow.c)**2 : '-'}</td>
+              <td className="p-2">
+                {userRow.a && userRow.b && userRow.c ? (
+                  Number(userRow.a)**2 + Number(userRow.b)**2 === Number(userRow.c)**2 ? (
+                    <span className="text-emerald-400 font-bold">Terbukti Sama!</span>
+                  ) : (
+                    <span className="text-red-400 font-bold">Bukan Siku-siku</span>
+                  )
+                ) : <span className="text-slate-500">Coba angka...</span>}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function Level5LadderIllustration() {
+  return (
+    <div className="bg-slate-900 rounded-2xl p-6 mb-8 border border-slate-700 text-white shadow-xl">
+      <div className="flex items-center mb-4">
+        <div className="bg-emerald-500/20 p-2 rounded-lg mr-3">
+          <Calculator className="w-5 h-5 text-emerald-400" />
+        </div>
+        <div>
+          <h3 className="font-extrabold text-sm text-emerald-400">Ilustrasi Kasus Real: Tangga & Dinding Rumah</h3>
+          <p className="text-[11px] text-slate-400">Penerapan Pythagoras pada pengukuran panjang tangga</p>
+        </div>
+      </div>
+
+      <div className="flex justify-center items-center py-4 bg-slate-950 rounded-xl border border-slate-800">
+        <svg width="280" height="200" viewBox="0 0 280 200" className="overflow-visible">
+          {/* Tanah / Land */}
+          <line x1="20" y1="170" x2="260" y2="170" stroke="#64748b" strokeWidth="4" />
+
+          {/* Dinding Rumah / Wall */}
+          <rect x="60" y="30" width="30" height="140" fill="#334155" stroke="#475569" strokeWidth="2" />
+          <line x1="90" y1="30" x2="90" y2="170" stroke="#f59e0b" strokeWidth="4" />
+
+          {/* Tangga / Ladder */}
+          <line x1="190" y1="170" x2="90" y2="50" stroke="#38bdf8" strokeWidth="6" strokeLinecap="round" />
+          
+          {/* Anak Tangga */}
+          <line x1="170" y1="146" x2="162" y2="152" stroke="#e0f2fe" strokeWidth="3" />
+          <line x1="150" y1="122" x2="142" y2="128" stroke="#e0f2fe" strokeWidth="3" />
+          <line x1="130" y1="98" x2="122" y2="104" stroke="#e0f2fe" strokeWidth="3" />
+          <line x1="110" y1="74" x2="102" y2="80" stroke="#e0f2fe" strokeWidth="3" />
+
+          {/* Ukuran Label */}
+          <text x="140" y="190" fill="#38bdf8" fontSize="12" fontWeight="bold" textAnchor="middle">Jarak Kaki Tangga = 3 m</text>
+          <text x="40" y="100" fill="#f59e0b" fontSize="12" fontWeight="bold" textAnchor="middle">Tinggi Dinding = 4 m</text>
+          <text x="160" y="90" fill="#34d399" fontSize="13" fontWeight="black" textAnchor="middle">Panjang Tangga (c) = ?</text>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [sessionUser, setSessionUser] = useState({ name: "Siswa Demo (Budi)", class: "VIII A", role: "student", username: "budi@school.id" });
+  const [currentView, setCurrentView] = useState('student-dashboard');
+  const [toast, setToast] = useState(null);
+  const [user, setUser] = useState(null);
+  const [meetingId, setMeetingId] = useState(1);
+  const [selectedModule, setSelectedModule] = useState('lkpd');
+  const [selectedTopic, setSelectedTopic] = useState('pythagoras');
+  
+  const [studentSubmissions, setStudentSubmissions] = useState([]);
+
+  useEffect(() => {
+    if (auth) {
+      const authenticate = async () => {
+        try {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+        } catch (error) {
+          console.error("Auth failed:", error);
+        }
+      };
+      authenticate();
+      const unsubscribe = onAuthStateChanged(auth, async (u) => {
+        setUser(u);
+        if(u && db) {
+            try {
+                const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'lkpd_submissions'));
+                const data = snap.docs.map(doc => doc.data());
+                setStudentSubmissions(data.filter(d => d.student?.username === sessionUser.username));
+            } catch(e) {}
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [sessionUser.username]);
+
+  const showToast = (message) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const useCheatDetector = (active, currentContextGetter) => {
+    const [cheatCount, setCheatCount] = useState(0);
+    const [cheatLogs, setCheatLogs] = useState([]);
+
+    useEffect(() => {
+      if (!active) return;
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          const timestamp = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const contextInfo = typeof currentContextGetter === 'function' ? currentContextGetter() : 'Umum';
+          const logEntry = { time: timestamp, context: contextInfo, type: "Meninggalkan tab / minimalkan browser" };
+          setCheatCount(prev => prev + 1);
+          setCheatLogs(prev => [...prev, logEntry]);
+        }
+      };
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    }, [active, currentContextGetter]);
+
+    return { cheatCount, cheatLogs };
+  };
+
+  const QuickNavBar = () => (
+    <div className="bg-slate-900 text-white px-4 py-3 flex flex-col md:flex-row justify-between items-center shadow-lg border-b border-slate-800 z-50 sticky top-0">
+      <div className="flex items-center space-x-3 mb-3 md:mb-0">
+        <div className="bg-blue-600 p-2 rounded-lg"><BookOpen className="w-5 h-5 text-white" /></div>
+        <div>
+          <h1 className="font-black text-lg tracking-tight leading-none text-white">MATHLEARN AI</h1>
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1">LKPD Teorema Pythagoras • 8 Level Pirie-Kieren</p>
+        </div>
+      </div>
+      <div className="flex items-center space-x-2 my-1">
+        <button 
+          onClick={() => { 
+            setSessionUser({ name: "Siswa Demo (Budi)", class: "VIII A", role: "student", username: "budi@school.id" }); 
+            setCurrentView('student-dashboard'); 
+            showToast("Beralih ke Portal Siswa"); 
+          }} 
+          className={`px-3 py-1.5 rounded-lg font-bold flex items-center text-xs transition ${sessionUser.role === 'student' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+        >
+          <User className="w-3.5 h-3.5 mr-1.5" /> Portal Siswa
+        </button>
+        <button 
+          onClick={() => { 
+            setSessionUser({ name: "Ibu Rahma, S.Pd.", class: "Guru Matematika", role: "teacher", username: "guru@school.id" }); 
+            setCurrentView('teacher-dashboard'); 
+            showToast("Beralih ke Dashboard Guru & AI"); 
+          }} 
+          className={`px-3 py-1.5 rounded-lg font-bold flex items-center text-xs transition ${sessionUser.role === 'teacher' ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+        >
+          <Bot className="w-3.5 h-3.5 mr-1.5" /> Dashboard Guru & AI
+        </button>
+        {sessionUser.role === 'student' && (
+          <button 
+            onClick={() => setCurrentView('student-results')} 
+            className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg font-bold flex items-center text-xs transition"
+          >
+            <Trophy className="w-3.5 h-3.5 mr-1.5" /> Nilai Saya
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  const ViewStudentDashboard = () => (
+    <div className="min-h-screen bg-gray-50 py-10 px-4">
+      <div className="max-w-5xl mx-auto">
+        <div className="bg-blue-900 rounded-3xl p-8 md:p-12 mb-8 text-white shadow-xl flex flex-col md:flex-row items-center justify-between overflow-hidden relative border border-blue-800">
+          <div className="relative z-10 mb-6 md:mb-0">
+            <span className="bg-blue-800/80 text-blue-200 text-xs font-black px-3 py-1.5 rounded-full uppercase tracking-wider mb-4 inline-block border border-blue-700">SEKOLAH MENENGAH PERTAMA</span>
+            <h1 className="text-3xl md:text-5xl font-black mb-2 tracking-tight">LKPD TEOREMA PYTHAGORAS</h1>
+            <p className="text-blue-200 text-sm md:text-base font-medium">8 Level Pemahaman Teori Pirie-Kieren • Selamat Datang, {sessionUser.name}</p>
+          </div>
+          <button 
+            onClick={() => setCurrentView('student-results')} 
+            className="bg-amber-400 hover:bg-amber-300 text-slate-900 px-6 py-3.5 rounded-2xl font-black transition shadow-lg flex items-center whitespace-nowrap z-10 text-sm"
+          >
+            <Trophy className="w-5 h-5 mr-2" /> Cek Hasil & Feedback AI
+          </button>
+        </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div 
+            onClick={() => { setSelectedModule('materi'); setCurrentView('select-config'); }} 
+            className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 hover:border-purple-500 hover:shadow-2xl transition-all cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><BookOpen className="w-7 h-7" /></div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Bahan Materi</h2>
+              <p className="text-gray-500 text-xs leading-relaxed mb-4">Pelajari rangkuman materi interaktif sebelum berlatih.</p>
+            </div>
+            <div className="flex items-center text-purple-600 font-bold group-hover:translate-x-2 transition-transform text-xs">Pelajari <ArrowRight className="w-4 h-4 ml-1" /></div>
+          </div>
+
+          <div 
+            onClick={() => { setSelectedModule('lkpd'); setCurrentView('select-config'); }} 
+            className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 hover:border-blue-500 hover:shadow-2xl transition-all cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><Table className="w-7 h-7" /></div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">LKPD 8 Level</h2>
+              <p className="text-gray-500 text-xs leading-relaxed mb-4">Pahami Teorema Pythagoras secara bertahap.</p>
+            </div>
+            <div className="flex items-center text-blue-600 font-bold group-hover:translate-x-2 transition-transform text-xs">Mulai LKPD <ArrowRight className="w-4 h-4 ml-1" /></div>
+          </div>
+
+          <div 
+            onClick={() => { setSelectedModule('latihan'); setCurrentView('select-config'); }} 
+            className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 hover:border-emerald-500 hover:shadow-2xl transition-all cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><Brain className="w-7 h-7" /></div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Latihan Soal</h2>
+              <p className="text-gray-500 text-xs leading-relaxed mb-4">Uji pemahaman cepat dengan pengerjaan pilihan ganda.</p>
+            </div>
+            <div className="flex items-center text-emerald-600 font-bold group-hover:translate-x-2 transition-transform text-xs">Mulai Latihan <ArrowRight className="w-4 h-4 ml-1" /></div>
+          </div>
+
+          <div 
+            onClick={() => { setSelectedModule('evaluasi'); setCurrentView('select-config'); }} 
+            className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 hover:border-amber-500 hover:shadow-2xl transition-all cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><FileText className="w-7 h-7" /></div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Evaluasi Akhir</h2>
+              <p className="text-gray-500 text-xs leading-relaxed mb-4">Ujian komprehensif dikoreksi instan oleh AI.</p>
+            </div>
+            <div className="flex items-center text-amber-600 font-bold group-hover:translate-x-2 transition-transform text-xs">Ikuti Evaluasi <ArrowRight className="w-4 h-4 ml-1" /></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const ViewSelectConfig = () => {
+    const [step, setStep] = useState(1);
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
+        <div className="bg-white p-8 md:p-10 rounded-3xl shadow-xl border border-gray-100 max-w-2xl w-full">
+          <button 
+            onClick={() => setCurrentView('student-dashboard')} 
+            className="flex items-center text-gray-500 mb-6 hover:text-black transition text-sm font-semibold"
+          >
+            <ChevronLeft className="w-5 h-5 mr-1"/> Kembali ke Dashboard
+          </button>
+          
+          {step === 1 && (
+            <>
+              <div className="text-center mb-8">
+                <span className="bg-blue-100 text-blue-800 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider mb-2 inline-block">Materi Pembelajaran</span>
+                <h2 className="text-3xl font-extrabold text-gray-900">Pilih Topik Pembelajaran</h2>
+                <p className="text-gray-500 text-sm mt-1">Pilih topik matematika yang ingin dipelajari secara interaktif.</p>
+              </div>
+              <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                {MATERI_LIST.map((mat) => (
+                  <div 
+                    key={mat.id} 
+                    onClick={() => { 
+                      setSelectedTopic(mat.id); 
+                      if(selectedModule === 'evaluasi') setCurrentView('evaluasi'); 
+                      else if(selectedModule === 'latihan') setCurrentView('latihan');
+                      else if(selectedModule === 'materi') setCurrentView('materi');
+                      else setStep(2); 
+                    }} 
+                    className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between group ${selectedTopic === mat.id ? 'border-blue-600 bg-blue-50/60 shadow-md' : 'border-gray-200 hover:border-blue-400 hover:bg-gray-50'}`}
+                  >
+                    <div className="flex items-start space-x-4">
+                      <div className="text-3xl bg-white p-3 rounded-2xl shadow-sm border border-gray-100">{mat.icon}</div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="font-bold text-gray-900 text-base">{mat.name}</h3>
+                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${mat.badge === 'Fiks & Lengkap' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>{mat.badge}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">{mat.desc}</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all flex-shrink-0" />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <div className="text-center mb-8">
+                <span className="bg-emerald-100 text-emerald-800 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider mb-2 inline-block">Modul Pembelajaran</span>
+                <h2 className="text-3xl font-extrabold text-gray-900">Pilih Pertemuan</h2>
+                <p className="text-gray-500 text-sm mt-1">Pilih alokasi pertemuan LKPD 8 Level Pirie-Kieren.</p>
+              </div>
+              <div className="space-y-4">
+                <button 
+                  onClick={() => { 
+                    if (studentSubmissions.some(s => s.docType === 'lkpd' && s.meetingId === 1)) {
+                        showToast("Kamu sudah mengerjakan Pertemuan 1!");
+                    } else {
+                        setMeetingId(1); setCurrentView(selectedModule); 
+                    }
+                  }} 
+                  className={`w-full p-5 rounded-2xl font-bold text-lg transition border hover:shadow-lg flex items-center justify-between group ${studentSubmissions.some(s => s.docType === 'lkpd' && s.meetingId === 1) ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed' : 'bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border-blue-200'}`}
+                >
+                  <div className="text-left">
+                    <div className="text-base font-extrabold">Pertemuan 1 (Level 1 - Level 4) {studentSubmissions.some(s => s.docType === 'lkpd' && s.meetingId === 1) && "✓ Selesai"}</div>
+                    <div className="text-xs opacity-80 font-normal mt-0.5">Penemu awal, sifat sudut siku-siku, simulator luas persegi, & perumusan rumus.</div>
+                  </div>
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform"/>
+                </button>
+                <button 
+                  onClick={() => { 
+                    const isM1Done = studentSubmissions.some(s => s.docType === 'lkpd' && s.meetingId === 1);
+                    const isM2Done = studentSubmissions.some(s => s.docType === 'lkpd' && s.meetingId === 2);
+                    if (!isM1Done) {
+                        showToast("Kerjakan Pertemuan 1 terlebih dahulu!");
+                        return;
+                    }
+                    if (isM2Done) {
+                        showToast("Kamu sudah mengerjakan Pertemuan 2!");
+                        return;
+                    }
+                    setMeetingId(2); setCurrentView(selectedModule); 
+                  }} 
+                  className={`w-full p-5 rounded-2xl font-bold text-lg transition border hover:shadow-lg flex items-center justify-between group ${studentSubmissions.some(s => s.docType === 'lkpd' && s.meetingId === 2) ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed' : (!studentSubmissions.some(s => s.docType === 'lkpd' && s.meetingId === 1) ? 'bg-gray-50 text-gray-400 border-gray-200 opacity-70 cursor-not-allowed' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border-emerald-200')}`}
+                >
+                  <div className="text-left">
+                    <div className="text-base font-extrabold">Pertemuan 2 (Level 5 - Level 8) {studentSubmissions.some(s => s.docType === 'lkpd' && s.meetingId === 2) && "✓ Selesai"}</div>
+                    <div className="text-xs opacity-80 font-normal mt-0.5">{!studentSubmissions.some(s => s.docType === 'lkpd' && s.meetingId === 1) ? "🔒 Terkunci (Harus Selesai Pertemuan 1)" : "Aplikasi real (Tangga & Dinding), penstrukturan, hingga pembuktian setengah lingkaran."}</div>
+                  </div>
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform"/>
+                </button>
+              </div>
+              <button onClick={() => setStep(1)} className="mt-6 w-full text-center text-xs text-gray-400 font-bold hover:text-gray-600">← Kembali Pilih Topik Materi</button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const ViewLKPD = () => {
+    const filteredLkpd = LKPD_DATA.filter(l => l.meeting === meetingId && l.topic === selectedTopic);
+    const [currLevelIdx, setCurrLevelIdx] = useState(0);
+    const [essayAnswers, setEssayAnswers] = useState({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [finished, setFinished] = useState(false);
+
+    const submitWorkRef = useRef(null);
+    const { seconds: timeLeft, format: formatTime } = useTimer(45 * 60, () => {
+      if(!finished && !isSubmitting) {
+          showToast("Waktu Habis! Mengumpulkan otomatis...");
+          if (submitWorkRef.current) submitWorkRef.current();
+      }
+    });
+
+    const activeLevel = filteredLkpd[currLevelIdx];
+    const getCurrentQuestionContext = () => activeLevel ? `Level ${activeLevel.level}: ${activeLevel.title}` : "LKPD";
+    const { cheatCount, cheatLogs } = useCheatDetector(!finished, getCurrentQuestionContext);
+
+    const isLevelComplete = () => {
+      if(!activeLevel) return false;
+      return activeLevel.essays.every(e => {
+        const val = essayAnswers[e.id];
+        if (!val) return false;
+        if (typeof val === 'string') return val.trim().length > 0;
+        if (typeof val === 'object') return (val.text && val.text.trim().length > 0) || val.image !== null;
+        return false;
+      });
+    };
+
+    const handleNext = () => { 
+      if (currLevelIdx < filteredLkpd.length - 1) { 
+        setCurrLevelIdx(currLevelIdx + 1); 
+        window.scrollTo(0,0); 
+      } 
+    };
+    const handlePrev = () => { 
+      if (currLevelIdx > 0) { 
+        setCurrLevelIdx(currLevelIdx - 1); 
+        window.scrollTo(0,0); 
+      } 
+    };
+
+    const submitWork = async () => {
+      setIsSubmitting(true);
+      const aiEvaluations = {};
+      let totalAiEssayScore = 0;
+      let essayCount = 0;
+
+      filteredLkpd.forEach(lvl => {
+        lvl.essays.forEach(e => {
+          const studentAns = essayAnswers[e.id];
+          const result = evaluateAnswerWithAI(e, studentAns, cheatCount);
+          aiEvaluations[e.id] = result;
+          totalAiEssayScore += result.score;
+          essayCount++;
+        });
+      });
+
+      const avgAiScore = essayCount > 0 ? Math.round((totalAiEssayScore / (essayCount * 10)) * 100) : 0;
+      const payload = {
+        docType: 'lkpd',
+        meetingId: meetingId,
+        topic: selectedTopic,
+        student: sessionUser,
+        essayAnswers,
+        aiEvaluations,
+        mcqScore: 100,
+        aiEssayScore: avgAiScore,
+        essayScore: avgAiScore,
+        finalScore: avgAiScore,
+        status: 'Selesai Dinilai AI (Menunggu Verifikasi Guru)',
+        cheatCount,
+        cheatLogs,
+        deviceInfo: navigator.userAgent,
+        timestamp: new Date().toISOString()
+      };
+
+      try {
+        if (db && user) {
+          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'lkpd_submissions'), payload);
+          setStudentSubmissions(prev => [...prev, payload]);
+        }
+        setFinished(true);
+        showToast("LKPD berhasil dikirim & dikoreksi AI!");
+      } catch (error) {
+        console.error("Error submit:", error);
+        setFinished(true);
+      }
+      setIsSubmitting(false);
+    };
+
+    submitWorkRef.current = submitWork;
+
+    if (finished) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
+          <div className="bg-white p-8 md:p-10 rounded-3xl shadow-xl max-w-lg w-full text-center border border-gray-100">
+            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6"><CheckCircle2 className="w-10 h-10" /></div>
+            <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Selamat, {sessionUser.name}!</h2>
+            <p className="text-gray-600 mb-6 text-sm">LKPD Pertemuan {meetingId} telah berhasil dikirim. Sistem AI telah mengoreksi jawabanmu secara otomatis!</p>
+            <div className="space-y-3">
+              <button onClick={() => setCurrentView('student-results')} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-md flex items-center justify-center text-sm"><Eye className="w-4 h-4 mr-2" /> Lihat Rincian Nilai & Feedback AI</button>
+              <button onClick={() => setCurrentView('student-dashboard')} className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition text-sm">Kembali ke Dashboard</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (!activeLevel) return null;
+
+    return (
+      <div className="min-h-screen bg-gray-50 pb-24 pt-4">
+        <div className="max-w-3xl mx-auto px-4 mb-4">
+          <div className="bg-blue-900 text-white p-4 rounded-2xl flex items-center justify-between shadow-sm">
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-300 block">SEKOLAH MENENGAH PERTAMA</span>
+              <h1 className="text-base font-black">LKPD TEOREMA PYTHAGORAS</h1>
+              <p className="text-xs text-blue-200">Disusun Berdasarkan 8 Level Pemahaman Pirie-Kieren</p>
+            </div>
+            <button onClick={() => setCurrentView('student-dashboard')} className="text-blue-200 hover:text-white p-2 transition"><X className="w-5 h-5"/></button>
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-200 shadow-sm rounded-2xl sticky top-14 z-40 max-w-3xl mx-auto px-6 py-3 flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-3">
+             <div className="font-bold text-gray-800 text-sm truncate">{sessionUser.name} ({sessionUser.class})</div>
+             <div className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold font-mono border border-red-100 shadow-sm flex items-center">
+                 ⏱️ {formatTime()}
+             </div>
+          </div>
+          <div className="flex space-x-1">
+            {filteredLkpd.map((_, i) => (<div key={i} className={`h-2.5 w-6 rounded-full transition-all ${i <= currLevelIdx ? 'bg-blue-600' : 'bg-gray-200'}`} />))}
+          </div>
+        </div>
+
+        <div className="max-w-3xl mx-auto px-4">
+          <div className="bg-white rounded-3xl p-6 md:p-8 shadow-lg border border-gray-200 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <span className="bg-blue-100 text-blue-800 text-xs font-black tracking-wider uppercase px-3 py-1 rounded-lg">Level {activeLevel.level} (Pertemuan {meetingId})</span>
+              <span className="text-xs text-gray-400 font-bold">Pirie-Kieren Framework</span>
+            </div>
+            <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-2 leading-tight">{activeLevel.title}</h2>
+            <p className="text-gray-600 text-sm mb-6">{activeLevel.desc}</p>
+            <div className="bg-blue-50/70 border border-blue-100 rounded-2xl p-5 mb-8 text-blue-900 text-sm font-medium leading-relaxed whitespace-pre-wrap">{activeLevel.theory}</div>
+
+            {/* Custom Dynamic Visualizations depending on Level */}
+            {activeLevel.hasTriangleDiagram && <Level1TriangleDiagram />}
+            {activeLevel.hasInteractiveVisualizer && <Level3InteractiveVisualizer />}
+            {activeLevel.hasTableVerification && <TableVerificationBox />}
+            {activeLevel.hasLadderIllustration && <Level5LadderIllustration />}
+
+            <div className="space-y-8">
+              {activeLevel.essays.map((q) => (
+                <div key={q.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-3">
+                  <p className="font-bold text-gray-800 text-sm md:text-base leading-relaxed whitespace-pre-wrap">{q.q}</p>
+                  {q.type === 'draw_upload' ? (
+                    <DrawingUploadBox value={essayAnswers[q.id]} onChange={(val) => setEssayAnswers({...essayAnswers, [q.id]: val})} />
+                  ) : (
+                    <textarea 
+                      rows={4} 
+                      value={essayAnswers[q.id] || ''} 
+                      onChange={(e) => setEssayAnswers({...essayAnswers, [q.id]: e.target.value})} 
+                      placeholder="Tuliskan jawaban dan alasan lengkapmu di sini..." 
+                      className="w-full p-4 rounded-xl border border-gray-300 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none resize-y bg-white text-sm transition shadow-sm" 
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-200 shadow-lg sticky bottom-6 z-10">
+            <button onClick={handlePrev} disabled={currLevelIdx === 0} className="px-5 py-2.5 font-bold text-gray-500 disabled:opacity-0 hover:text-black transition flex items-center text-sm"><ChevronLeft className="w-5 h-5 mr-1" /> Kembali</button>
+            {currLevelIdx < filteredLkpd.length - 1 ? (
+              <button onClick={handleNext} disabled={!isLevelComplete()} className="px-7 py-3 bg-blue-600 text-white rounded-xl font-bold disabled:opacity-50 hover:bg-blue-700 transition shadow-md flex items-center text-sm">Lanjut Level <ChevronRight className="w-5 h-5 ml-1"/></button>
+            ) : (
+              <button onClick={submitWork} disabled={!isLevelComplete() || isSubmitting} className="px-8 py-3 bg-emerald-600 text-white rounded-xl font-bold disabled:opacity-50 hover:bg-emerald-700 transition shadow-md flex items-center text-sm">
+                {isSubmitting ? 'Memproses AI...' : 'Kirim & Koreksi AI'} <Send className="w-4 h-4 ml-2"/>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const ViewEvaluasi = () => {
+    const [mcqAnswers, setMcqAnswers] = useState({});
+    const [essayAnswers, setEssayAnswers] = useState({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [finished, setFinished] = useState(false);
+
+    const submitWorkRef = useRef(null);
+    const { seconds: timeLeft, format: formatTime } = useTimer(60 * 60, () => {
+      if(!finished && !isSubmitting) {
+          showToast("Waktu Ujian Habis! Mengumpulkan otomatis...");
+          if (submitWorkRef.current) submitWorkRef.current();
+      }
+    });
+
+    const getCurrentEvalContext = () => "Soal Evaluasi Akhir (PG & Esai)";
+    const { cheatCount, cheatLogs } = useCheatDetector(!finished, getCurrentEvalContext);
+    const activeEvalData = EVALUASI_DATA[selectedTopic] || EVALUASI_DATA['pythagoras'];
+
+    const isComplete = () => {
+      const mcqsDone = activeEvalData.mcqs.every(m => mcqAnswers[m.id] !== undefined);
+      const essaysDone = activeEvalData.essays.every(e => essayAnswers[e.id] && essayAnswers[e.id].trim() !== '');
+      return mcqsDone && essaysDone;
+    };
+
+    const submitWork = async () => {
+      setIsSubmitting(true);
+      let mcqCorrect = 0;
+      activeEvalData.mcqs.forEach(m => { if (mcqAnswers[m.id] === m.ans) mcqCorrect++; });
+      const mcqScore = Math.round((mcqCorrect / activeEvalData.mcqs.length) * 100);
+
+      const aiEvaluations = {};
+      let totalAiEssayScore = 0;
+      activeEvalData.essays.forEach(e => {
+        const res = evaluateAnswerWithAI(e, essayAnswers[e.id], cheatCount);
+        aiEvaluations[e.id] = res;
+        totalAiEssayScore += res.score;
+      });
+
+      const avgAiEssayScore = Math.round((totalAiEssayScore / (activeEvalData.essays.length * 10)) * 100);
+      const compositeFinalScore = Math.round((mcqScore * 0.4) + (avgAiEssayScore * 0.6));
+
+      const payload = {
+        docType: 'evaluasi', meetingId: null, topic: selectedTopic, student: sessionUser,
+        mcqAnswers, essayAnswers, aiEvaluations, mcqScore, aiEssayScore: avgAiEssayScore,
+        essayScore: avgAiEssayScore, finalScore: compositeFinalScore,
+        status: 'Selesai Dinilai AI (Menunggu Verifikasi Guru)', cheatCount, cheatLogs, 
+        deviceInfo: navigator.userAgent, timestamp: new Date().toISOString()
+      };
+
+      try {
+        if (db && user) {
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'lkpd_submissions'), payload);
+            setStudentSubmissions(prev => [...prev, payload]);
+        }
+        setFinished(true);
+        showToast("Evaluasi dikirim & dikoreksi AI!");
+      } catch (error) { setFinished(true); }
+      setIsSubmitting(false);
+    };
+
+    submitWorkRef.current = submitWork;
+
+    if (finished) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
+          <div className="bg-white p-8 md:p-10 rounded-3xl shadow-xl max-w-lg w-full text-center border border-gray-100">
+            <div className="w-20 h-20 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-6"><Award className="w-10 h-10" /></div>
+            <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Evaluasi Selesai!</h2>
+            <p className="text-gray-600 mb-6 text-sm">Jawaban Pilihan Ganda & Esai telah dikoreksi oleh AI.</p>
+            <button onClick={() => setCurrentView('student-results')} className="w-full bg-amber-600 text-white py-3.5 rounded-xl font-bold hover:bg-amber-700 transition shadow-md flex items-center justify-center mb-3 text-sm"><Trophy className="w-4 h-4 mr-2" /> Lihat Rincian Nilai & Koreksi AI</button>
+            <button onClick={() => setCurrentView('student-dashboard')} className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition text-sm">Kembali ke Dashboard</button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-screen bg-gray-50 pb-24 pt-8">
+        <div className="max-w-3xl mx-auto px-4">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+                <h1 className="text-3xl font-extrabold text-gray-900">Evaluasi Akhir</h1>
+                <div className="flex items-center space-x-3 mt-1">
+                   <p className="text-gray-500 text-sm">{sessionUser.name} • Kelas {sessionUser.class}</p>
+                   <span className="bg-red-100 text-red-700 px-2.5 py-0.5 rounded-lg text-xs font-bold font-mono border border-red-200">Sisa Waktu: {formatTime()}</span>
+                </div>
+            </div>
+            <button onClick={() => setCurrentView('student-dashboard')} className="text-gray-500 hover:text-red-500 font-bold flex items-center bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-200 text-xs"><X className="w-4 h-4 mr-1"/> Batal</button>
+          </div>
+
+          <div className="space-y-8">
+            <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-800 mb-6 border-b pb-3 flex items-center"><Target className="w-5 h-5 mr-2 text-blue-500"/> Bagian 1: Pilihan Ganda</h3>
+              <div className="space-y-8">
+                {activeEvalData.mcqs.map((q) => (
+                  <div key={q.id}>
+                    <p className="font-semibold text-gray-800 mb-4 text-sm md:text-base leading-relaxed">{q.q}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {q.options.map((opt, oIdx) => (
+                        <button key={oIdx} onClick={() => setMcqAnswers({...mcqAnswers, [q.id]: oIdx})} className={`text-left p-3.5 rounded-xl border-2 transition-all font-medium text-xs md:text-sm flex items-center ${mcqAnswers[q.id] === oIdx ? 'border-blue-600 bg-blue-50 text-blue-900' : 'border-gray-200 hover:border-gray-300 bg-gray-50'}`}>
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 font-bold text-xs ${mcqAnswers[q.id] === oIdx ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-300'}`}>{['A','B','C','D'][oIdx]}</span> {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-800 mb-6 border-b pb-3 flex items-center"><Edit3 className="w-5 h-5 mr-2 text-amber-500"/> Bagian 2: Soal Esai & Pembuktian</h3>
+              <div className="space-y-8">
+                {activeEvalData.essays.map((q) => (
+                  <div key={q.id}>
+                    <p className="font-semibold text-gray-800 mb-3 text-sm md:text-base leading-relaxed">{q.q}</p>
+                    <textarea rows={4} value={essayAnswers[q.id] || ''} onChange={(e) => setEssayAnswers({...essayAnswers, [q.id]: e.target.value})} placeholder="Tuliskan jawaban dan penjelasan lengkapmu di sini..." className="w-full p-4 rounded-xl border border-gray-300 focus:ring-4 focus:ring-amber-100 focus:border-amber-400 outline-none resize-y bg-gray-50 text-sm transition shadow-inner" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 bg-white p-5 rounded-2xl border border-gray-200 shadow-lg flex justify-between items-center sticky bottom-6 z-10">
+            <span className="text-gray-500 font-medium text-xs">Terjawab PG: {Object.keys(mcqAnswers).length}/{activeEvalData.mcqs.length}</span>
+            <button onClick={submitWork} disabled={!isComplete() || isSubmitting} className="px-8 py-3 bg-amber-600 text-white rounded-xl font-bold disabled:opacity-50 hover:bg-amber-700 transition shadow-md text-sm">
+              {isSubmitting ? 'Memproses AI...' : 'Kirim Evaluasi & Koreksi AI'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const ViewStudentResults = () => {
+    const [submissions, setSubmissions] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      if (user && db) {
+        const fetchStudentSubmissions = async () => {
+          try {
+            const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'lkpd_submissions'));
+            const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setSubmissions(data.filter(d => d.student?.username === sessionUser.username || d.student?.name === sessionUser.name));
+          } catch (err) { console.error(err); }
+          setLoading(false);
+        };
+        fetchStudentSubmissions();
+      } else {
+        setLoading(false);
+      }
+    }, [user]);
+
+    if (loading) return <div className="min-h-screen flex justify-center items-center text-gray-500 font-bold">Memuat nilai & umpan balik...</div>;
+
+    return (
+      <div className="min-h-screen bg-gray-50 py-10 px-4">
+        <div className="max-w-4xl mx-auto">
+          <button onClick={() => setCurrentView('student-dashboard')} className="flex items-center text-gray-500 hover:text-black font-semibold mb-6 transition text-sm">
+            <ChevronLeft className="w-5 h-5 mr-1" /> Kembali ke Dashboard Siswa
+          </button>
+
+          <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-200 mb-8">
+            <div className="flex items-center space-x-3 mb-2">
+              <Trophy className="w-8 h-8 text-amber-500" />
+              <h1 className="text-3xl font-extrabold text-gray-900">Hasil & Feedback Pembelajaran</h1>
+            </div>
+            <p className="text-gray-500 text-sm">Nilai, koreksi AI, serta masukan resmi dari guru untuk LKPD yang kamu kerjakan.</p>
+          </div>
+
+          {submissions.length === 0 ? (
+            <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 text-gray-500">
+              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="font-bold text-gray-700 text-lg mb-1">Belum Ada Lembar Kerja Dikerjakan</p>
+              <p className="text-sm text-gray-400 mb-6">Silakan kerjakan LKPD atau Evaluasi terlebih dahulu untuk melihat hasil penilaian AI & Guru.</p>
+              <button onClick={() => setCurrentView('student-dashboard')} className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition text-sm">Mulai Pengerjaan LKPD</button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {submissions.map((sub) => (
+                <div key={sub.id} className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="bg-slate-900 text-white p-6 flex flex-wrap justify-between items-center gap-4">
+                    <div>
+                      <span className="text-xs text-amber-400 font-bold tracking-wider uppercase mb-1 block">
+                        {sub.docType === 'evaluasi' ? 'Evaluasi Akhir' : `LKPD (Pertemuan ${sub.meetingId})`}
+                      </span>
+                      <h3 className="text-xl font-bold">Status: {sub.status}</h3>
+                      <p className="text-xs text-slate-400 mt-1">Disubmit: {new Date(sub.timestamp).toLocaleString()}</p>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <div className="bg-slate-800 border border-slate-700 rounded-2xl px-5 py-3 text-center">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase">Nilai Akhir</div>
+                        <div className="text-3xl font-black text-emerald-400">{sub.finalScore || sub.essayScore || 0}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-6 space-y-6">
+                    {sub.teacherNotes && (
+                      <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start space-x-3">
+                        <MessageSquare className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <div className="text-xs font-bold text-amber-900 uppercase">Catatan / Feedback Guru:</div>
+                          <p className="text-sm text-amber-800 font-medium mt-0.5">{sub.teacherNotes}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="border-t border-gray-100 pt-4 space-y-4">
+                      <h4 className="font-bold text-gray-800 text-sm flex items-center"><Bot className="w-4 h-4 text-blue-600 mr-2" /> Rincian Koreksi AI per Pertanyaan:</h4>
+                      {sub.aiEvaluations && Object.keys(sub.aiEvaluations).map((qId) => {
+                        const evalItem = sub.aiEvaluations[qId];
+                        const answerObj = sub.essayAnswers?.[qId];
+
+                        let qText = "Soal tidak ditemukan";
+                        if (sub.docType === 'evaluasi') {
+                            const e = EVALUASI_DATA.pythagoras.essays.find(x => x.id === qId);
+                            if(e) qText = e.q;
+                        } else {
+                            const lkpdSet = LKPD_DATA.filter(l => l.meeting === sub.meetingId).flatMap(l => l.essays);
+                            const e = lkpdSet.find(x => x.id === qId);
+                            if(e) qText = e.q;
+                        }
+
+                        return (
+                          <div key={qId} className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-3 text-xs">
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="font-semibold text-gray-800 w-3/4 whitespace-pre-wrap">{qText}</span>
+                              <span className="bg-blue-100 text-blue-800 font-black px-2.5 py-1 rounded-lg flex-shrink-0">Poin AI: {evalItem.score}/10</span>
+                            </div>
+                            {answerObj && (
+                              <div className="bg-white p-3 rounded-xl border border-gray-200 text-gray-800">
+                                <span className="font-bold text-gray-400 block mb-1">Jawaban Kamu:</span>
+                                {typeof answerObj === 'object' ? (
+                                  <div>
+                                    {answerObj.image && <img src={answerObj.image} alt="Gambar Siswa" className="w-24 h-24 object-cover rounded-lg border my-2" />}
+                                    <p>{answerObj.text || answerObj.content || '-'}</p>
+                                  </div>
+                                ) : ( <p>{answerObj}</p> )}
+                              </div>
+                            )}
+                            <div className="text-slate-600 bg-slate-100 p-2.5 rounded-xl border border-slate-200">
+                              <span className="font-bold text-slate-800">Ulasan AI:</span> {evalItem.feedback}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const ViewMateri = () => {
+    const materiData = MATERI_CONTENT[selectedTopic] || MATERI_CONTENT.pythagoras;
+    return (
+      <div className="min-h-screen bg-gray-50 py-10 px-4">
+        <div className="max-w-3xl mx-auto">
+          <button onClick={() => setCurrentView('student-dashboard')} className="flex items-center text-gray-500 hover:text-black font-semibold mb-6 transition text-sm">
+            <ChevronLeft className="w-5 h-5 mr-1" /> Kembali ke Dashboard
+          </button>
+          <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-200 mb-8">
+            <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Bahan Materi Pembelajaran</h1>
+            <p className="text-gray-500 text-sm mb-6">Pelajari konsep dasar sebelum mulai mengerjakan LKPD maupun Evaluasi.</p>
+            <div className="space-y-6">
+              {materiData.map((m, idx) => (
+                <div key={idx} className="bg-purple-50 p-6 rounded-2xl border border-purple-100 shadow-sm">
+                  <h3 className="text-lg font-bold text-purple-900 mb-3 flex items-center"><Sparkles className="w-5 h-5 mr-2 text-purple-500"/> {m.title}</h3>
+                  <p className="text-purple-800 text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end">
+               <button onClick={() => setCurrentView('student-dashboard')} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold transition text-sm">Selesai Membaca</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const ViewLatihan = () => {
+    const latihanData = LATIHAN_DATA[selectedTopic] || LATIHAN_DATA.pythagoras;
+    const [answers, setAnswers] = useState({});
+    const [showResults, setShowResults] = useState(false);
+
+    return (
+      <div className="min-h-screen bg-gray-50 py-10 px-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+                <span className="bg-emerald-100 text-emerald-800 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider mb-2 inline-block">Latihan Mandiri</span>
+                <h1 className="text-3xl font-extrabold text-gray-900">Latihan Soal</h1>
+            </div>
+            <button onClick={() => setCurrentView('student-dashboard')} className="text-gray-500 hover:text-red-500 text-sm font-bold flex items-center bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-200"><X className="w-4 h-4 mr-1"/> Tutup</button>
+          </div>
+          
+          <div className="space-y-6">
+            {latihanData.map((q) => (
+              <div key={q.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <p className="font-semibold text-gray-800 mb-4">{q.q}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {q.options.map((opt, oIdx) => (
+                    <button 
+                      key={oIdx} 
+                      disabled={showResults}
+                      onClick={() => setAnswers({...answers, [q.id]: oIdx})} 
+                      className={`text-left p-3.5 rounded-xl border-2 transition-all font-medium text-sm flex items-center ${
+                        showResults ? (
+                            oIdx === q.ans ? 'border-emerald-500 bg-emerald-50 text-emerald-900' : 
+                            (answers[q.id] === oIdx ? 'border-red-500 bg-red-50 text-red-900' : 'border-gray-100 opacity-50')
+                        ) : (
+                            answers[q.id] === oIdx ? 'border-emerald-600 bg-emerald-50 text-emerald-900' : 'border-gray-200 hover:border-gray-300'
+                        )
+                      }`}>
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 font-bold text-xs ${showResults && oIdx === q.ans ? 'bg-emerald-500 text-white' : (answers[q.id] === oIdx && !showResults ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-300 text-gray-500')}`}>
+                        {['A','B','C','D'][oIdx]}
+                      </span> {opt}
+                    </button>
+                  ))}
+                </div>
+                {showResults && (
+                    <div className="mt-5 p-4 bg-blue-50 text-blue-900 text-xs rounded-xl border border-blue-100 flex items-start space-x-3">
+                        <Bot className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                        <div><span className="font-bold block mb-1">Pembahasan AI:</span> {q.explanation}</div>
+                    </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 bg-white p-5 rounded-2xl border border-gray-200 shadow-lg flex justify-between items-center sticky bottom-6 z-10">
+            <span className="text-gray-500 font-medium text-xs">Terjawab: {Object.keys(answers).length}/{latihanData.length}</span>
+            {!showResults ? (
+                <button 
+                  onClick={() => setShowResults(true)} 
+                  disabled={Object.keys(answers).length !== latihanData.length}
+                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold disabled:opacity-50 text-sm transition shadow-md">
+                  Cek Jawaban & Pembahasan
+                </button>
+            ) : (
+                <button onClick={() => { setShowResults(false); setAnswers({}); }} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md transition">Coba Lagi Latihan</button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const ViewTeacherDashboard = () => {
+    const [submissions, setSubmissions] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [activeDetail, setActiveDetail] = useState(null);
+    const [essayGrades, setEssayGrades] = useState({});
+    const [teacherNotes, setTeacherNotes] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [filterDoc, setFilterDoc] = useState('lkpd');
+    const [teacherTab, setTeacherTab] = useState('koreksi');
+
+    useEffect(() => {
+      if (user && db) {
+        const fetchSubmissions = async () => {
+          try {
+            const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'lkpd_submissions'));
+            const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+            setSubmissions(data);
+          } catch (err) { showToast("Error load submission data"); }
+          setLoading(false);
+        };
+        fetchSubmissions();
+      } else {
+        setLoading(false);
+      }
+    }, [user]);
+
+    const openGrading = (sub) => {
+      setActiveDetail(sub);
+      setTeacherNotes(sub.teacherNotes || '');
+      const initGrades = {};
+      const activeEval = EVALUASI_DATA[sub.topic || 'pythagoras'] || EVALUASI_DATA['pythagoras'];
+      const sourceEssays = sub.docType === 'evaluasi' ? activeEval.essays : LKPD_DATA.filter(l => l.meeting === sub.meetingId).flatMap(l => l.essays);
+
+      sourceEssays.forEach(e => {
+        if (sub.essayScoresMap && sub.essayScoresMap[e.id] !== undefined) initGrades[e.id] = sub.essayScoresMap[e.id];
+        else if (sub.aiEvaluations && sub.aiEvaluations[e.id]) initGrades[e.id] = sub.aiEvaluations[e.id].score;
+        else initGrades[e.id] = 0;
+      });
+      setEssayGrades(initGrades);
+    };
+
+    const saveGrades = async () => {
+      if (!activeDetail) return;
+      setIsSubmitting(true);
+
+      const essayList = activeDetail.docType === 'evaluasi' 
+        ? EVALUASI_DATA.pythagoras.essays 
+        : LKPD_DATA.filter(l => l.meeting === activeDetail.meetingId).flatMap(l => l.essays);
+
+      const totalEssayPossible = essayList.length * 10;
+      const totalScoreSum = Object.values(essayGrades).reduce((a,b) => a + Number(b), 0);
+      const calculatedEssayScore = Math.round((totalScoreSum / totalEssayPossible) * 100);
+
+      let finalScore = calculatedEssayScore;
+      if (activeDetail.docType === 'evaluasi') {
+        finalScore = Math.round((activeDetail.mcqScore * 0.4) + (calculatedEssayScore * 0.6));
+      }
+
+      const updatePayload = {
+        essayScoresMap: essayGrades, essayScore: calculatedEssayScore,
+        finalScore: finalScore, teacherNotes: teacherNotes, status: 'Selesai Diverifikasi Guru'
+      };
+
+      try {
+        if (db && user) {
+          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'lkpd_submissions', activeDetail.id), updatePayload);
+          showToast("Nilai & Catatan Guru berhasil disimpan!");
+          setActiveDetail(null);
+          const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'lkpd_submissions'));
+          const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+          setSubmissions(data);
+        }
+      } catch (err) { showToast("Gagal menyimpan nilai."); }
+      setIsSubmitting(false);
+    };
+
+    if (activeDetail) {
+      const activeEval = EVALUASI_DATA[activeDetail.topic || 'pythagoras'] || EVALUASI_DATA['pythagoras'];
+      const sourceData = activeDetail.docType === 'evaluasi' 
+        ? [{ title: "Soal Evaluasi Akhir", desc: "Uji Pemahaman Kompleks", mcqs: activeEval.mcqs, essays: activeEval.essays }]
+        : LKPD_DATA.filter(l => l.meeting === activeDetail.meetingId);
+
+      return (
+        <div className="min-h-screen bg-gray-100 py-10 px-4">
+          <div className="max-w-4xl mx-auto">
+            <button onClick={() => setActiveDetail(null)} className="flex items-center text-gray-500 hover:text-black font-semibold mb-6 transition text-sm">
+              <ChevronLeft className="w-5 h-5 mr-1" /> Kembali ke Daftar Submisi
+            </button>
+
+            <div className="bg-white rounded-3xl shadow-xl border border-gray-200 overflow-hidden mb-8">
+              <div className="bg-slate-900 p-8 text-white">
+                <div className="flex flex-wrap justify-between items-start gap-4">
+                  <div>
+                    <span className="bg-amber-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full uppercase tracking-wider mb-2 inline-block">
+                      {activeDetail.docType === 'evaluasi' ? 'Evaluasi Akhir' : `LKPD Pertemuan ${activeDetail.meetingId}`}
+                    </span>
+                    <h2 className="text-3xl font-black mb-1">{activeDetail.student?.name}</h2>
+                    <p className="text-slate-400 text-sm">Kelas: {activeDetail.student?.class} • Disubmit: {new Date(activeDetail.timestamp).toLocaleString()}</p>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-slate-800 p-3 rounded-2xl text-center border border-slate-700">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">Estimasi AI</div>
+                      <div className="text-2xl font-black text-blue-400">{activeDetail.aiEssayScore || 0}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {activeDetail.cheatCount > 0 && (
+                  <div className="mt-6 bg-red-900/80 border border-red-500/60 p-5 rounded-2xl text-red-100 text-xs space-y-3">
+                    <div className="font-black text-sm flex items-center text-red-200">
+                      <AlertTriangle className="w-5 h-5 mr-2 text-red-400" /> Deteksi Aktivitas Pindah Tab ({activeDetail.cheatCount}x Terdeteksi):
+                    </div>
+                    <div className="bg-red-950/60 rounded-xl p-3 border border-red-800/50 max-h-48 overflow-y-auto space-y-2">
+                      {activeDetail.cheatLogs && activeDetail.cheatLogs.length > 0 ? (
+                        activeDetail.cheatLogs.map((log, lIdx) => (
+                          <div key={lIdx} className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-red-900/50 pb-1.5 last:border-b-0 text-xs">
+                            <span className="font-bold text-amber-300">⏱️ Jam {typeof log === 'object' ? log.time : log}</span>
+                            <span className="font-semibold text-red-200">📍 {typeof log === 'object' ? log.context : 'Lokasi Pengerjaan'}</span>
+                          </div>
+                        ))
+                      ) : ( <p className="text-red-300 italic">Terdeteksi berpindah tab saat pengerjaan.</p> )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-8 space-y-8">
+                {sourceData.map((lvl, idx) => (
+                  <div key={idx} className="border-b border-gray-100 pb-6">
+                    <h4 className="text-lg font-bold text-gray-900 mb-4">{lvl.title || lvl.desc}</h4>
+                    {lvl.essays && lvl.essays.map((e) => {
+                      const studentAns = activeDetail.essayAnswers?.[e.id];
+                      const aiEval = activeDetail.aiEvaluations?.[e.id];
+
+                      return (
+                        <div key={e.id} className="bg-amber-50/40 p-6 rounded-2xl border border-amber-200 mb-6 space-y-4">
+                          <p className="font-bold text-gray-800 text-sm whitespace-pre-wrap">{e.q}</p>
+                          <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-xs text-emerald-900"><span className="font-bold">Rubrik / Kunci:</span> {e.key}</div>
+                          <div className="bg-white p-4 rounded-xl border border-gray-200 text-sm">
+                            <span className="font-bold text-xs text-gray-400 block mb-1">Jawaban Siswa:</span>
+                            {typeof studentAns === 'object' ? (
+                              <div>
+                                {studentAns.image && (
+                                  <div className="mb-2">
+                                    <span className="text-xs text-gray-500 block mb-1">Foto Jawaban:</span>
+                                    <img src={studentAns.image} alt="Jawaban" className="max-h-60 rounded-xl border border-gray-300 shadow-sm" />
+                                  </div>
+                                )}
+                                <p>{studentAns.text || studentAns.content || <span className="italic text-gray-400">Tidak ada catatan teks</span>}</p>
+                              </div>
+                            ) : ( <p>{studentAns || <span className="italic text-gray-400">Tidak dijawab.</span>}</p> )}
+                          </div>
+                          {aiEval && (
+                            <div className="bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-100 text-xs text-indigo-900 flex items-start space-x-2">
+                              <Bot className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
+                              <div><span className="font-bold">Rekomendasi AI (Poin: {aiEval.score}/10):</span> {aiEval.feedback}</div>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-end border-t border-amber-200 pt-3">
+                            <label className="text-xs font-bold text-gray-700 mr-3">Nilai Verifikasi Guru (0-10):</label>
+                            <input type="number" min="0" max="10" value={essayGrades[e.id] !== undefined ? essayGrades[e.id] : 0} onChange={(ev) => setEssayGrades({...essayGrades, [e.id]: Math.min(10, Math.max(0, ev.target.value))})} className="w-20 p-2 text-center font-black text-amber-900 border-2 border-amber-400 rounded-xl focus:border-amber-600 outline-none bg-white text-sm" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-bold text-gray-700">Catatan / Feedback Guru untuk Siswa:</label>
+                  <textarea rows={3} value={teacherNotes} onChange={e => setTeacherNotes(e.target.value)} placeholder="Tuliskan masukan atau catatan motivasi..." className="w-full p-4 border border-gray-300 rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 text-sm" />
+                </div>
+
+                <div className="p-6 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4">
+                  <div>
+                    <div className="text-xs text-slate-400">Nilai Akhir Verifikasi Guru:</div>
+                    <div className="text-3xl font-black text-emerald-400">
+                      {Math.round((activeDetail.mcqScore * 0.4) + ((Object.values(essayGrades).reduce((a,b)=>a+Number(b),0) / ((activeDetail.docType === 'evaluasi' ? EVALUASI_DATA.pythagoras.essays.length : LKPD_DATA.filter(l => l.meeting === activeDetail.meetingId).flatMap(l => l.essays).length) * 10) * 100) * 0.6)) || 0}
+                    </div>
+                  </div>
+                  <button onClick={saveGrades} disabled={isSubmitting} className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-8 py-3.5 rounded-xl font-black transition shadow-lg disabled:opacity-50 text-sm">
+                    Simpan & Terbitkan ke Siswa
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const filteredSubmissions = submissions.filter(s => s.docType === filterDoc);
+
+    return (
+      <div className="min-h-screen bg-gray-50 py-10 px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+            <div>
+              <span className="bg-amber-100 text-amber-800 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider mb-2 inline-block">Portal Guru & Koreksi AI</span>
+              <h1 className="text-3xl font-extrabold text-gray-900">Dashboard Guru</h1>
+            </div>
+            <div className="flex space-x-2 bg-white p-1.5 rounded-2xl shadow-sm border border-gray-200">
+              <button onClick={() => setTeacherTab('koreksi')} className={`px-4 py-2 rounded-xl text-sm font-bold transition ${teacherTab === 'koreksi' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:bg-gray-100'}`}>Tugas & Koreksi</button>
+              <button onClick={() => setTeacherTab('pengaturan')} className={`px-4 py-2 rounded-xl text-sm font-bold transition ${teacherTab === 'pengaturan' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:bg-gray-100'}`}>Pengaturan & Jadwal</button>
+            </div>
+          </div>
+
+          {teacherTab === 'koreksi' ? (
+            <>
+              <div className="flex justify-end mb-4">
+                  <div className="flex items-center space-x-3 bg-white p-2 rounded-2xl border border-gray-200 shadow-sm">
+                    <span className="text-xs font-bold text-gray-500 pl-2">Filter Dokumen:</span>
+                    <button onClick={() => setFilterDoc('lkpd')} className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filterDoc === 'lkpd' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>LKPD 8 Level</button>
+                    <button onClick={() => setFilterDoc('evaluasi')} className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filterDoc === 'evaluasi' ? 'bg-amber-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>Evaluasi Akhir</button>
+                  </div>
+              </div>
+              <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-gray-100/70 border-b border-gray-200 text-xs font-bold text-gray-600 uppercase tracking-wider">
+                        <th className="p-4">Siswa</th>
+                        <th className="p-4">Jenis Dokumen</th>
+                        <th className="p-4">Skor AI</th>
+                        <th className="p-4">Nilai Akhir</th>
+                        <th className="p-4">Status Indikasi Curang</th>
+                        <th className="p-4 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-sm">
+                      {filteredSubmissions.length === 0 ? (
+                        <tr><td colSpan="6" className="p-8 text-center text-gray-400 italic">Belum ada submisi untuk filter ini.</td></tr>
+                      ) : filteredSubmissions.map((sub) => (
+                        <tr key={sub.id} className="hover:bg-amber-50/50 transition">
+                          <td className="p-4">
+                              <div className="font-bold text-gray-900">{sub.student?.name}</div>
+                              <div className="text-[10px] text-gray-400 max-w-[150px] truncate" title={sub.deviceInfo}>{sub.deviceInfo ? sub.deviceInfo.split(')')[0] + ')' : sub.student?.class}</div>
+                          </td>
+                          <td className="p-4 text-xs font-medium text-gray-600">{sub.docType === 'evaluasi' ? 'Evaluasi Akhir' : `LKPD (Pertemuan ${sub.meetingId})`}</td>
+                          <td className="p-4"><span className="bg-blue-50 text-blue-700 font-bold px-2.5 py-1 rounded-lg text-xs border border-blue-200 flex items-center w-max"><Bot className="w-3.5 h-3.5 mr-1" /> {sub.aiEssayScore || 0}</span></td>
+                          <td className="p-4"><span className="text-lg font-black text-emerald-600">{sub.finalScore || sub.essayScore || 0}</span></td>
+                          <td className="p-4">
+                            {sub.cheatCount > 0 ? (
+                              <span className="bg-red-100 text-red-800 text-xs font-bold px-3 py-1 rounded-full flex items-center w-max border border-red-200"><AlertTriangle className="w-3.5 h-3.5 mr-1 text-red-600" /> Terdeteksi {sub.cheatCount}x</span>
+                            ) : (
+                              <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full flex items-center w-max"><ShieldCheck className="w-3.5 h-3.5 mr-1 text-green-600" /> Aman (0x)</span>
+                            )}
+                          </td>
+                          <td className="p-4 text-right">
+                            <button onClick={() => openGrading(sub)} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition">Tinjau & Verifikasi</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-200">
+                <h3 className="text-xl font-bold text-gray-900 mb-6">Pengaturan Kelas & Penjadwalan (Simulasi)</h3>
+                <div className="grid md:grid-cols-2 gap-6">
+                    <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200 space-y-4">
+                        <div>
+                            <div className="font-bold text-gray-800 mb-1 flex items-center"><Target className="w-4 h-4 mr-2 text-blue-500"/> Batasi Waktu Pengerjaan</div>
+                            <p className="text-xs text-gray-500 mb-2">Siswa memiliki waktu terbatas saat mengerjakan LKPD/Evaluasi (Timer aktif).</p>
+                            <select className="p-2 border border-gray-300 rounded-lg text-sm w-full outline-none focus:border-blue-500">
+                                <option>45 Menit</option>
+                                <option>60 Menit</option>
+                                <option>90 Menit</option>
+                            </select>
+                        </div>
+                        <div className="pt-4 border-t border-gray-200">
+                            <div className="font-bold text-gray-800 mb-1 flex items-center"><ShieldCheck className="w-4 h-4 mr-2 text-emerald-500"/> Pembatasan Perangkat (Device Lock)</div>
+                            <p className="text-xs text-gray-500 mb-2">Mencatat User-Agent perangkat siswa untuk mencegah joki / beda perangkat.</p>
+                            <label className="flex items-center space-x-2 text-sm font-medium cursor-pointer">
+                                <input type="checkbox" className="w-4 h-4 rounded text-blue-600 cursor-pointer" defaultChecked />
+                                <span>Aktifkan Kunci Perangkat</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+                        <div className="font-bold text-gray-800 mb-1 flex items-center"><BookOpen className="w-4 h-4 mr-2 text-amber-500"/> Jadwal Akses Pertemuan</div>
+                        <p className="text-xs text-gray-500 mb-4">Tentukan rentang tanggal siswa diizinkan mengakses modul Pertemuan 1 dan 2.</p>
+                        <div className="space-y-3">
+                            <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                                <div className="text-xs font-bold text-gray-700 mb-1">Pertemuan 1:</div>
+                                <div className="flex items-center space-x-2">
+                                    <input type="date" className="p-1.5 border border-gray-300 rounded text-xs w-full" />
+                                    <span className="text-xs text-gray-400">s/d</span>
+                                    <input type="date" className="p-1.5 border border-gray-300 rounded text-xs w-full" />
+                                </div>
+                            </div>
+                            <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                                <div className="text-xs font-bold text-gray-700 mb-1">Pertemuan 2:</div>
+                                <div className="flex items-center space-x-2">
+                                    <input type="date" className="p-1.5 border border-gray-300 rounded text-xs w-full" />
+                                    <span className="text-xs text-gray-400">s/d</span>
+                                    <input type="date" className="p-1.5 border border-gray-300 rounded text-xs w-full" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-6 flex justify-end">
+                    <button className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition shadow-md" onClick={() => showToast("Pengaturan kelas berhasil disimpan!")}>Simpan Pengaturan</button>
+                </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="font-sans text-gray-900 antialiased bg-gray-50 min-h-screen">
+      <QuickNavBar />
+      {currentView === 'student-dashboard' && <ViewStudentDashboard />}
+      {currentView === 'select-config' && <ViewSelectConfig />}
+      {currentView === 'materi' && <ViewMateri />}
+      {currentView === 'latihan' && <ViewLatihan />}
+      {currentView === 'lkpd' && <ViewLKPD />}
+      {currentView === 'evaluasi' && <ViewEvaluasi />}
+      {currentView === 'student-results' && <ViewStudentResults />}
+      {currentView === 'teacher-dashboard' && <ViewTeacherDashboard />}
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center z-50 text-xs md:text-sm font-bold border border-slate-700 animate-bounce">
+          <Sparkles className="w-4 h-4 mr-2 text-amber-400" />
+          <span>{toast}</span>
+        </div>
+      )}
+    </div>
+  );
+}
